@@ -407,3 +407,39 @@ d("Mobil uygulama: medya imzalama ve avatar koruması", () => {
     await as({ kind: "user", id: u }, "update profiles set avatar_url = null where id = $1", [u]);
   });
 });
+
+d("Gizlilik sertleştirmesi: başkası adına sorgu yapılamaz", () => {
+  it("gizli hesabı kimin takip ettiği, kimin yönetici/Premium olduğu sızdırılamaz", async () => {
+    const meraklı = await createUser();
+    const takipci = await createUser();
+    const gizli = await createUser();
+    await superuser("update profiles set is_private = true where id = $1", [gizli]);
+    await superuser("insert into follows (follower_id, following_id) values ($1, $2)", [takipci, gizli]);
+    // Takipçinin kendisi için doğru sonuç
+    let [r] = await as<{ v: boolean }>({ kind: "user", id: takipci }, "select can_view_profile($1, $2) as v", [gizli, takipci]);
+    expect(r.v).toBe(true);
+    // Meraklı kullanıcı takipçi adına soramaz (kendi durumu döner: false)
+    [r] = await as<{ v: boolean }>({ kind: "user", id: meraklı }, "select can_view_profile($1, $2) as v", [gizli, takipci]);
+    expect(r.v).toBe(false);
+    // Engelleme bilgisi de sızdırılamaz
+    await superuser("insert into blocks (blocker_id, blocked_id) values ($1, $2)", [gizli, takipci]);
+    [r] = await as<{ v: boolean }>({ kind: "user", id: meraklı }, "select is_blocked_between($1, $2) as v", [gizli, takipci]);
+    expect(r.v).toBe(false);
+    [r] = await as<{ v: boolean }>({ kind: "user", id: takipci }, "select is_blocked_between($1, $2) as v", [gizli, takipci]);
+    expect(r.v).toBe(true);
+    // Yönetici kimliği sızdırılamaz
+    await superuser("delete from admin_roles where role = 'owner'");
+    await superuser("insert into admin_roles (user_id, role) values ($1, 'owner')", [gizli]);
+    [r] = await as<{ v: boolean }>({ kind: "user", id: meraklı }, "select has_role('owner', $1) as v", [gizli]);
+    expect(r.v).toBe(false);
+    [r] = await as<{ v: boolean }>({ kind: "user", id: gizli }, "select has_role('owner') as v");
+    expect(r.v).toBe(true);
+    await superuser("delete from admin_roles where role = 'owner'");
+    // Premium durumu sızdırılamaz
+    await superuser("insert into subscriptions (user_id, status, provider, price_amount, current_period_end) values ($1, 'active', 'test', 10, now() + interval '30 days')", [takipci]);
+    [r] = await as<{ v: boolean }>({ kind: "user", id: meraklı }, "select is_premium($1) as v", [takipci]);
+    expect(r.v).toBe(false);
+    [r] = await as<{ v: boolean }>({ kind: "user", id: takipci }, "select is_premium() as v");
+    expect(r.v).toBe(true);
+  });
+});
