@@ -17,10 +17,18 @@ Hiçbir adımda kredi kartı eklemeniz gerekmez; bir servis kart isterse durun v
    - `anon` / `publishable` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `service_role` / `secret` key → `SUPABASE_SERVICE_ROLE_KEY` (**GİZLİ** — kimseyle paylaşmayın, GitHub'a yüklemeyin)
 
-### Veritabanı şemasını yükleme
+### Veritabanı şemasını yükleme (tek adım)
 
-**SQL Editor** → **New query** açın ve `supabase/migrations/` klasöründeki dosyaları **isim sırasıyla**
-(0001 → 0007) tek tek yapıştırıp **Run** deyin. Her biri "Success" vermeli.
+1. Supabase'de projenizi açın → sol menüde **SQL Editor** → **New query**.
+2. Depodaki **`supabase/KURULUM_TEK_DOSYA.sql`** dosyasının tamamını kopyalayıp yapıştırın.
+   Telefondan: dosyayı GitHub'da açın → **Raw** → tümünü seç → kopyala.
+3. **Run** düğmesine basın. "Success. No rows returned" görmelisiniz.
+
+Bu dosya tüm tabloları, güvenlik kurallarını (RLS) ve depolama alanlarını tek işlemde kurar; bir hata
+olursa hiçbir şey yarım kalmaz. Yalnızca yeni (boş) bir projede bir kez çalıştırın.
+
+> Alternatif (bilgisayardan): `SUPABASE_ACCESS_TOKEN=sbp_... node scripts/supabase-deploy.mjs apply <proje-ref>`
+> komutu aynı dosyaları Supabase Yönetim API'si ile sırayla yükler ve doğrular.
 
 > Not: Supabase, Mayıs 2026'dan sonra açılan projelerde tablolara açık `GRANT` izni istiyor.
 > Migration dosyaları bu izinleri zaten içeriyor.

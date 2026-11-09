@@ -49,7 +49,7 @@ export function setupPage(): Node {
             throw new UserError("Sunucuya ulaşılamadı. Adresi ve internet bağlantısını kontrol et.");
           }
           if (res.status === 401 || res.status === 403) throw new UserError("Anahtar kabul edilmedi. Supabase → Project Settings → API sayfasındaki anon / publishable anahtarı kopyala.");
-          if (res.status === 404) throw new UserError("Bağlantı kuruldu ama tablolar bulunamadı. supabase/migrations dosyalarını SQL Editor'da sırayla çalıştırdın mı?");
+          if (res.status === 404) throw new UserError("Bağlantı kuruldu ama tablolar bulunamadı. supabase/KURULUM_TEK_DOSYA.sql dosyasını SQL Editor'da çalıştırdın mı?");
           if (!res.ok) throw new UserError(`Bağlantı kurulamadı (HTTP ${res.status}).`);
           const persisted = saveDeviceConfig({ supabaseUrl: u, supabaseAnonKey: k, siteUrl: s });
           resetCaches();
@@ -79,7 +79,7 @@ export function setupPage(): Node {
         "ol",
         { class: "steps small" },
         h("li", null, "supabase.com'da ücretsiz hesap ve proje aç (bölge: Frankfurt)."),
-        h("li", null, "SQL Editor'da depodaki supabase/migrations dosyalarını sırayla çalıştır."),
+        h("li", null, "SQL Editor'da depodaki supabase/KURULUM_TEK_DOSYA.sql dosyasının tamamını yapıştırıp Run de."),
         h("li", null, "Project Settings → API sayfasından Project URL ve anon / publishable anahtarını kopyala."),
       ),
       h("p", { class: "muted tiny" }, "Ayrıntılı rehber: docs/KURULUM.md"),
