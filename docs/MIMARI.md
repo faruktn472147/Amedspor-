@@ -57,7 +57,8 @@ Kesin ve güncel değerler: https://supabase.com/pricing
 ## Yol haritası (henüz yapılmayanlar)
 
 - iyzico/PayTR canlı entegrasyonu (üye işyeri hesabı gerekli)
-- Mağaza uygulamaları (Expo) + AdMob — geliştirici hesapları ücretli
+- Google Play Faturalandırma (uygulama içi Premium) ve AdMob — onay gerektirir
+- iOS (App Store) — Apple geliştirici programı yıllık ücretli
 - Tematik taraftar toplulukları (gruplar)
 - Gerçek zamanlı canlı skor (Supabase Realtime) — şu an canlı maçta 30 sn'de bir yenileme
 - Anlık (push) bildirimler — şu an uygulama içi bildirim

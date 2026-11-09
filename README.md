@@ -14,6 +14,14 @@ oyuncu istatistikleri, tahmin oyunları, profiller ve reklamsız **Premium** üy
   **test modu** vardır ve canlı ortamda kendiliğinden kapalıdır.
 - **Güvenlik veritabanında**: Tüm tablolarda Row Level Security; yetkiler sunucuda ve veritabanında kontrol edilir.
 
+## Mobil uygulama (Android / Google Play)
+
+- **Tek HTML dosyası:** [`mobile/www/index.html`](mobile/www/index.html) — tüm uygulama (kod, tasarım,
+  ayarlar) tek dosyada, ~130 KB. Kaynak kod `mobile/src/` içinde; `node mobile/build.mjs` ile yeniden üretilir.
+- **Android paketi:** `mobile/android/` (Capacitor 8). GitHub Actions her değişiklikte test APK'sı ve
+  (imza anahtarı tanımlıysa) Play Store'a yüklenecek imzalı **AAB** üretir.
+- Adım adım yükleme rehberi: [docs/PLAY-STORE.md](docs/PLAY-STORE.md)
+
 ## Teknoloji
 
 | Katman | Seçim | Neden |
@@ -44,12 +52,14 @@ Supabase olmadan da uygulama açılır ve "Kurulum bekleniyor" uyarısıyla dür
 | `npm test` | Birim + API testleri (Vitest) |
 | `TEST_DATABASE_URL=$(bash scripts/db-test-up.sh) npm run test:db` | Gerçek PostgreSQL üzerinde güvenlik (RLS) testleri |
 | `npm run build && npm run test:e2e` | Playwright uçtan uca testleri (mobil + masaüstü) |
+| `npm run test:mobile` | Tek HTML mobil uygulamanın uçtan uca testleri |
 
 ## Dokümanlar
 
 - [docs/KURULUM.md](docs/KURULUM.md) — Supabase, e-posta, Google girişi, Vercel kurulumu adım adım
 - [docs/ODEME-VE-GELIR.md](docs/ODEME-VE-GELIR.md) — Premium, ödeme kuruluşları, reklam ağları, paranın banka hesabına gelişi
 - [docs/MIMARI.md](docs/MIMARI.md) — Mimari, güvenlik modeli, ücretsiz plan sınırları, yol haritası
+- [docs/PLAY-STORE.md](docs/PLAY-STORE.md) — Android uygulamasını Google Play'e yükleme
 
 ## Klasör yapısı
 

@@ -33,15 +33,15 @@ jobs:
       run:
         working-directory: mobile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: mobile/package-lock.json
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -76,12 +76,21 @@ jobs:
           AMED_VERSION_CODE: ${{ github.run_number }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::notice::İmza anahtarı tanımlı değil; yalnızca test APK'sı üretildi. Ayrıntı: docs/PLAY-STORE.md"
+            # Anahtar yoksa: imzalı yayın derlemesinin çalıştığını GEÇİCİ bir anahtarla doğrula.
+            # Bu deneme paketi Play Store'a yüklenemez; doğrulamadan sonra silinir.
+            echo "::notice::İmza anahtarı tanımlı değil — yalnızca test APK'sı yüklenecek. Ayrıntı: docs/PLAY-STORE.md"
+            keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/dogrulama.jks" -storepass dogrulama123 -keypass dogrulama123 \
+              -alias dogrulama -keyalg RSA -keysize 2048 -validity 1 -dname "CN=Dogrulama"
+            AMED_KEYSTORE_PATH="$RUNNER_TEMP/dogrulama.jks" AMED_KEYSTORE_PASSWORD=dogrulama123 AMED_KEY_ALIAS=dogrulama AMED_KEY_PASSWORD=dogrulama123 \
+              ./gradlew --no-daemon bundleRelease
+            jarsigner -verify app/build/outputs/bundle/release/app-release.aab
+            rm -f app/build/outputs/bundle/release/*.aab "$RUNNER_TEMP/dogrulama.jks"
             exit 0
           fi
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
           AMED_KEYSTORE_PATH="$RUNNER_TEMP/upload.jks" ./gradlew --no-daemon bundleRelease
           rm -f "$RUNNER_TEMP/upload.jks"
+          jarsigner -verify app/build/outputs/bundle/release/app-release.aab
 
       - name: Paketleri yükle
         uses: actions/upload-artifact@v4
