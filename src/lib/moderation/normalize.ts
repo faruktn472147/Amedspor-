@@ -66,8 +66,9 @@ function collapseRepeats(s: string): string {
  * "s i k t i r" -> "siktir", "a.m.k" -> "amk"
  */
 function joinSplitLetters(s: string): string {
-  return s.replace(/(?:^|(?<=\s))((?:\p{L}[\s.\-_*+,]+){2,}\p{L})(?=\s|$)/gu, (m) =>
-    m.replace(/[\s.\-_*+,]+/g, ""),
+  // Not: Eski Safari sürümleri (iOS < 16.4) "lookbehind" desteklemediği için kullanılmaz.
+  return s.replace(/(^|\s)((?:\p{L}[\s.\-_*+,]+){2,}\p{L})(?=\s|$)/gu, (_m, pre: string, body: string) =>
+    pre + body.replace(/[\s.\-_*+,]+/g, ""),
   );
 }
 

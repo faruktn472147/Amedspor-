@@ -280,3 +280,10 @@ export const getMySubscription = () =>
         qs({ select: "status,current_period_end,cancel_at_period_end,price_amount,provider", user_id: `eq.${api.userId}` }),
       )
     : Promise.resolve(null);
+
+/** Bağlantı değiştiğinde önbellekleri temizler. */
+export function resetCaches(): void {
+  settingsCache = null;
+  premiumCache = null;
+  adCache = null;
+}

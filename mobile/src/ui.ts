@@ -1,7 +1,8 @@
 import { h, sheet, toast, type Child } from "./dom";
 import { icon } from "./icons";
 import { api, ApiError, NotConfiguredError } from "./api";
-import { navigate } from "./router";
+import { currentHash, navigate } from "./router";
+import { configSource } from "./config";
 import { VERIFICATION_LABEL } from "@/lib/news/classify";
 import { pickCampaign, type PlacementCode } from "@/lib/ads/frequency";
 import type { AdCampaign, Match, NewsItem, Post, Team } from "@/lib/types";
@@ -94,15 +95,37 @@ export function errorText(e: unknown): string {
 /** Giriş gerektiren işlemler için */
 export function requireLogin(): boolean {
   if (api.userId) return true;
-  navigate(`#/giris?next=${encodeURIComponent(location.hash || "#/")}`);
+  navigate(`#/giris?next=${encodeURIComponent(currentHash())}`);
   return false;
 }
 
 export function setupNotice(): HTMLElement {
   return alertBox(
-    h("span", null, h("strong", null, "Kurulum bekleniyor. "), "Uygulamanın veritabanı bağlantısı henüz yapılandırılmadı. Sahte veri gösterilmez."),
+    h(
+      "span",
+      null,
+      h("strong", null, "Kurulum bekleniyor. "),
+      "Uygulamanın veritabanı bağlantısı henüz yapılandırılmadı. Sahte veri gösterilmez. ",
+      configSource() === "none" ? h("a", { href: "#/kurulum", class: "link" }, "Bağlantıyı uygulamadan kur →") : null,
+    ),
     "warning",
   );
+}
+
+/** Güvenli bağlamda olmayan ortamlarda da çalışan rastgele UUID */
+export function uuid(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    try {
+      return crypto.randomUUID();
+    } catch {
+      /* güvenli olmayan bağlam */
+    }
+  }
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const x = [...b].map((n) => n.toString(16).padStart(2, "0")).join("");
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
 }
 
 export function externalLink(href: string, label: Child, cls = "link"): HTMLElement {

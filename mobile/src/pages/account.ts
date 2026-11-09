@@ -1,13 +1,14 @@
 import { h, toast } from "../dom";
 import { icon, logoMark } from "../icons";
 import { api } from "../api";
-import { config, isBackendConfigured, isSiteConfigured } from "../config";
-import { navigate, safeNextHash } from "../router";
+import { config, configSource, isBackendConfigured, isSiteConfigured } from "../config";
+import { navigate, refresh, safeNextHash } from "../router";
 import { getMyProfile, getMySubscription, getSettings, isPremium, resetPremiumCache } from "../data";
 import { moderateFields, moderateText } from "@/lib/moderation";
 import { SUBSCRIPTION_STATUS_LABEL, type SubscriptionStatus } from "@/lib/payments/types";
 import { validateUpload } from "@/lib/uploads/validate";
 import { UserError, alertBox, avatar, button, card, emptyState, errorText, externalLink, fmtDate, fmtTry, requireLogin, run, setupNotice } from "../ui";
+import { uuid } from "../ui";
 import { applyTheme, currentTheme } from "../theme";
 
 const pageTitle = (t: string, sub?: string) => h("header", { class: "page-title" }, h("h1", null, t), sub ? h("p", { class: "muted small" }, sub) : null);
@@ -199,10 +200,10 @@ export async function settingsPage(): Promise<Node> {
       c.getContext("2d")!.drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, 512, 512);
       const blob = await new Promise<Blob | null>((r) => c.toBlob(r, "image/webp", 0.85));
       if (!blob) throw new UserError("Görsel işlenemedi.");
-      const path = `${me.id}/avatar-${crypto.randomUUID()}.webp`;
+      const path = `${me.id}/avatar-${uuid()}.webp`;
       await api.upload("avatars", path, blob, "image/webp");
       await api.update("profiles", `id=eq.${me.id}`, { avatar_url: api.publicUrl("avatars", path) });
-      navigate(location.hash);
+      refresh();
     }, "Profil fotoğrafın güncellendi.");
   };
   avatarBox.append(fileInput, button([icon("image", "ic-xs"), " Fotoğraf değiştir"], () => fileInput.click(), "secondary"));
@@ -342,6 +343,7 @@ export async function menuPage(): Promise<Node> {
       item("#/premium", "crown", "Premium"),
       me ? item("#/ayarlar", "settings", "Ayarlar") : null,
       item("#/hakkinda", "info", "Hakkında ve yasal metinler"),
+      configSource() !== "file" ? item("#/kurulum", "wifi", configSource() === "device" ? "Bağlantı ayarları (bu cihaz)" : "Bağlantıyı kur") : null,
     ),
     h("p", { class: "muted tiny center" }, `Sürüm ${config().appVersion}`),
   );

@@ -32,10 +32,10 @@ const CATEGORY_LABEL: Record<Category, string> = {
 
 // Kişisel bilgi kalıpları (ham metin üzerinde çalışır)
 const PHONE_RE = /(?:\+?90[\s.-]?)?\(?0?5\d{2}\)?[\s.-]?\d{3}[\s.-]?\d{2}[\s.-]?\d{2}/;
-const TC_RE = /(?<!\d)[1-9]\d{10}(?!\d)/;
+const TC_RE = /(?:^|\D)([1-9]\d{10})(?!\d)/;
 const IBAN_RE = /\bTR\s?\d{2}(?:\s?\d{4}){5}\s?\d{2}\b/i;
 const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.]{2,}/;
-const CARD_RE = /(?<!\d)(?:\d[ -]?){15,16}(?!\d)/;
+const CARD_RE = /(?:^|\D)((?:\d[ -]?){15,16})(?!\d)/;
 const URL_RE = /\bhttps?:\/\/[^\s]+|\bwww\.[^\s]+/gi;
 
 /** TC kimlik numarası algoritma kontrolü — rastgele 11 haneli sayıları ayırır. */
@@ -68,10 +68,10 @@ function luhn(num: string): boolean {
 function detectPersonalInfo(raw: string, hits: ModerationHit[]) {
   if (PHONE_RE.test(raw)) hits.push({ category: "kisisel_bilgi", severity: "block", term: "telefon" });
   const tc = raw.match(TC_RE);
-  if (tc && isValidTcKimlik(tc[0])) hits.push({ category: "kisisel_bilgi", severity: "block", term: "tc_kimlik" });
+  if (tc && isValidTcKimlik(tc[1])) hits.push({ category: "kisisel_bilgi", severity: "block", term: "tc_kimlik" });
   if (IBAN_RE.test(raw)) hits.push({ category: "dolandiricilik", severity: "review", term: "iban" });
   const card = raw.match(CARD_RE);
-  if (card && luhn(card[0])) hits.push({ category: "kisisel_bilgi", severity: "block", term: "kart" });
+  if (card && luhn(card[1])) hits.push({ category: "kisisel_bilgi", severity: "block", term: "kart" });
   if (EMAIL_RE.test(raw)) hits.push({ category: "kisisel_bilgi", severity: "review", term: "eposta" });
 }
 

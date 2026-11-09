@@ -53,8 +53,65 @@ function readFromDocument(): Partial<AppConfig> | undefined {
   return typeof window !== "undefined" ? window.AMED_CONFIG : undefined;
 }
 
+const DEVICE_KEY = "amed.config.v1";
+
+/** Uygulamanın içinden (Kurulum ekranı) kaydedilmiş bağlantı — yalnızca dosyada yapılandırma YOKSA kullanılır. */
+function readDeviceConfig(): Partial<AppConfig> | undefined {
+  try {
+    const raw = localStorage.getItem(DEVICE_KEY);
+    return raw ? (JSON.parse(raw) as Partial<AppConfig>) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export type ConfigSource = "file" | "device" | "none";
 let current: AppConfig | null = null;
+let source: ConfigSource = "none";
+
 export function config(): AppConfig {
-  current ??= readConfig(readFromDocument());
+  if (current) return current;
+  const fromFile = readConfig(readFromDocument());
+  if (isBackendConfigured(fromFile)) {
+    source = "file";
+    current = fromFile;
+  } else {
+    const dev = readConfig(readDeviceConfig());
+    if (isBackendConfigured(dev)) {
+      source = "device";
+      current = { ...dev, appVersion: fromFile.appVersion };
+    } else {
+      source = "none";
+      current = fromFile;
+    }
+  }
   return current;
+}
+
+export function configSource(): ConfigSource {
+  config();
+  return source;
+}
+
+/** Bağlantıyı bu cihaza kaydeder. Dosyaya gömülü yapılandırma varsa ona dokunulmaz. */
+export function saveDeviceConfig(c: Pick<AppConfig, "supabaseUrl" | "supabaseAnonKey" | "siteUrl">): boolean {
+  try {
+    localStorage.setItem(DEVICE_KEY, JSON.stringify(c));
+  } catch {
+    // Depolama kapalı (ör. korumalı önizleme): yalnızca bu oturum için bellekte tutulur
+    current = { ...readConfig(c), appVersion: config().appVersion };
+    source = "device";
+    return false;
+  }
+  current = null;
+  return true;
+}
+
+export function clearDeviceConfig(): void {
+  try {
+    localStorage.removeItem(DEVICE_KEY);
+  } catch {
+    /* depolama kapalı */
+  }
+  current = null;
 }

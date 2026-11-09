@@ -87,6 +87,11 @@ jobs:
             rm -f app/build/outputs/bundle/release/*.aab "$RUNNER_TEMP/dogrulama.jks"
             exit 0
           fi
+          # Play Store'a bağlantısız (kurulum bekleyen) bir sürüm gönderilmesini engelle
+          if grep -q "__SUPABASE_URL__" ../www/index.html; then
+            echo "::error::Play Store paketi için AMED_SUPABASE_URL, AMED_SUPABASE_ANON_KEY ve AMED_SITE_URL değişkenleri tanımlanmalı (docs/PLAY-STORE.md, adım 1)."
+            exit 1
+          fi
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
           AMED_KEYSTORE_PATH="$RUNNER_TEMP/upload.jks" ./gradlew --no-daemon bundleRelease
           rm -f "$RUNNER_TEMP/upload.jks"

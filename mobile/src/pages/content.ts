@@ -1,3 +1,4 @@
+import { currentHash, refresh } from "../router";
 import { h } from "../dom";
 import { icon } from "../icons";
 import { api } from "../api";
@@ -123,7 +124,7 @@ export async function matchDetailPage(p: Record<string, string>): Promise<Node> 
   if (live) {
     // Canlı maçta 30 sn'de bir yenile; uygulama arka plandaysa yenileme yapılmaz
     liveTimer = setInterval(() => {
-      if (document.visibilityState === "visible" && location.hash.startsWith(`#/mac/${m.id}`)) window.dispatchEvent(new HashChangeEvent("hashchange"));
+      if (document.visibilityState === "visible" && currentHash().startsWith(`#/mac/${m.id}`)) refresh();
     }, 30000);
   }
   const side = (id?: string) => lineups.filter((l) => l.team_id === id);

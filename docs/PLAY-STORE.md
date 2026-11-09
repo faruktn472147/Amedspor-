@@ -34,6 +34,15 @@ sekmesine şu üç değişkeni ekleyin. Her derlemede dosyaya otomatik yazılır
 
 **Elle yol:** `mobile/www/index.html` dosyasının başındaki `amed-config` bloğundaki üç değeri yazın.
 
+**Telefondan deneme yolu (kod düzenlemeden):** Dosyayı telefonda açın → "Bağlantıyı uygulamadan kur"
+→ Supabase adresi ve anon anahtarını yapıştırın → **Bağlantıyı test et ve kaydet**. Bağlantı yalnızca o
+cihazda saklanır. Play Store paketinde bağlantı dosyaya gömülü olmalıdır; bağlantısız bir paket
+GitHub derlemesinde bilerek durdurulur.
+
+> Dosyayı iPhone'da Dosyalar/Claude önizleyicisinde açabilirsiniz; uygulama bu korumalı ortamlarda da
+> çalışır. Ancak bu önizleyiciler kalıcı kayda izin vermeyebilir (giriş ve bağlantı her açılışta
+> sorulabilir). Asıl deneyim Android uygulamasında ve tarayıcıdadır.
+
 > ⚠️ `service_role` / `secret` anahtarını ASLA bu dosyaya veya bu değişkenlere yazmayın.
 > anon anahtarı herkese açık olacak şekilde tasarlanmıştır; veriler veritabanı kurallarıyla (RLS) korunur.
 

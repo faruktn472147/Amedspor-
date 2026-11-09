@@ -2,13 +2,14 @@ import { h, toast } from "../dom";
 import { icon } from "../icons";
 import { api, ApiError } from "../api";
 import { config, isBackendConfigured } from "../config";
-import { navigate } from "../router";
+import { navigate, refresh } from "../router";
 import { getBookmarks, getComments, getFeed, getFollowRequests, getMyProfile, getNotifications, getPost, getProfile, getSettings, isPremium, searchProfiles } from "../data";
 import { moderateText } from "@/lib/moderation";
 import { adPositions, interleaveAds } from "@/lib/ads/frequency";
 import { buildStoragePath, UPLOAD_LIMITS, validateUpload } from "@/lib/uploads/validate";
 import type { Comment, Post } from "@/lib/types";
 import { adPlaceholder, adSlot, alertBox, avatar, badge, button, card, compact, emptyState, errorText, openReport, postCard, requireLogin, run, setupNotice, shareLink, timeAgo } from "../ui";
+import { uuid } from "../ui";
 
 const pageTitle = (t: string, sub?: string) => h("header", { class: "page-title" }, h("h1", null, t), sub ? h("p", { class: "muted small" }, sub) : null);
 const dataSaverOn = () => {
@@ -44,7 +45,7 @@ export async function feedPage(_: Record<string, string>, q: URLSearchParams): P
     }
     const positions = settings && !premium ? adPositions(posts.length, settings.ads.feed_first_after, settings.ads.feed_every, settings.ads.max_per_page) : [];
     for (const e of interleaveAds(posts, (p) => p.id, positions)) {
-      list.appendChild(e.type === "item" ? postCard(e.item, { dataSaver: ds, onDeleted: () => navigate(location.hash) }) : adPlaceholder("community_feed", slot++));
+      list.appendChild(e.type === "item" ? postCard(e.item, { dataSaver: ds, onDeleted: () => refresh() }) : adPlaceholder("community_feed", slot++));
     }
     more.replaceChildren(
       nextCursor
@@ -87,7 +88,7 @@ export async function postPage(p: Record<string, string>): Promise<Node> {
               c.moderation_status === "pending" ? h("span", { class: "amber" }, "incelemede") : null,
               api.userId && !nested ? h("button", { type: "button", class: "link-btn", onclick: () => { replyTo = c; replyInfo.textContent = `@${c.author?.username} kullanıcısına cevap veriyorsun`; input.focus(); } }, "Cevap ver") : null,
               api.userId && (api.userId === c.author_id || api.userId === post.author_id)
-                ? h("button", { type: "button", class: "link-btn", "aria-label": "Yorumu sil", onclick: async (e: Event) => { if (!window.confirm("Yorum silinsin mi?")) return; const ok = await run(e.currentTarget as HTMLButtonElement, () => api.remove("comments", `id=eq.${c.id}`)); if (ok !== undefined) navigate(location.hash); } }, "Sil")
+                ? h("button", { type: "button", class: "link-btn", "aria-label": "Yorumu sil", onclick: async (e: Event) => { if (!window.confirm("Yorum silinsin mi?")) return; const ok = await run(e.currentTarget as HTMLButtonElement, () => api.remove("comments", `id=eq.${c.id}`)); if (ok !== undefined) refresh(); } }, "Sil")
                 : null,
               api.userId && api.userId !== c.author_id ? h("button", { type: "button", class: "link-btn", onclick: () => openReport("comment", c.id) }, "Şikâyet") : null,
             ),
@@ -156,7 +157,7 @@ export async function profilePage(p: Record<string, string>): Promise<Node> {
     : d.blocked
       ? button("Engeli kaldır", async (e) => {
           const ok = await run(e.currentTarget as HTMLButtonElement, () => api.remove("blocks", `blocker_id=eq.${api.userId}&blocked_id=eq.${u.id}`), "Engel kaldırıldı");
-          if (ok !== undefined) navigate(location.hash);
+          if (ok !== undefined) refresh();
         }, "outline")
       : h(
           "div",
@@ -170,7 +171,7 @@ export async function profilePage(p: Record<string, string>): Promise<Node> {
               if (!requireLogin()) return;
               if (!window.confirm("Bu kullanıcıyı engellemek istiyor musun? Karşılıklı takip kaldırılır ve birbirinizin içeriğini göremezsiniz.")) return;
               const ok = await run(e.currentTarget as HTMLButtonElement, () => api.insert("blocks", { blocker_id: api.userId, blocked_id: u.id }), "Kullanıcı engellendi");
-              if (ok !== undefined) navigate(location.hash);
+              if (ok !== undefined) refresh();
             },
           }, "Engelle"),
         );
@@ -189,7 +190,7 @@ export async function profilePage(p: Record<string, string>): Promise<Node> {
     ),
     d.canView
       ? feed.posts.length
-        ? h("div", { class: "stack" }, ...feed.posts.map((x) => postCard(x, { dataSaver: dataSaverOn(), onDeleted: () => navigate(location.hash) })))
+        ? h("div", { class: "stack" }, ...feed.posts.map((x) => postCard(x, { dataSaver: dataSaverOn(), onDeleted: () => refresh() })))
         : emptyState("Henüz paylaşım yok")
       : emptyState("Bu hesap gizli", "Paylaşımları görmek için takip isteği gönder.", null, "lock"),
   );
@@ -325,11 +326,11 @@ export async function composePage(_: Record<string, string>, q: URLSearchParams)
           width = c.width;
           height = c.height;
         }
-        const path = buildStoragePath(api.userId!, mime, crypto.randomUUID());
+        const path = buildStoragePath(api.userId!, mime, uuid());
         await api.upload("media", path, blob, mime);
         let posterPath: string | undefined;
         if (f.poster) {
-          posterPath = buildStoragePath(api.userId!, "image/webp", crypto.randomUUID());
+          posterPath = buildStoragePath(api.userId!, "image/webp", uuid());
           await api.upload("media", posterPath, f.poster, "image/webp");
         }
         media.push({ path, mime, size: blob.size, width, height, duration: f.duration, posterPath });
@@ -518,11 +519,11 @@ export async function notificationsPage(): Promise<Node> {
               h("a", { href: `#/u/${r.requester.username}`, class: "grow strong" }, `@${r.requester.username}`),
               button("Kabul", async (e) => {
                 const ok = await run(e.currentTarget as HTMLButtonElement, () => api.rpc("accept_follow_request", { p_requester: r.requester_id }), "Kabul edildi");
-                if (ok !== undefined) navigate(location.hash);
+                if (ok !== undefined) refresh();
               }, "primary", { class: "btn btn-primary btn-sm" }),
               button("Reddet", async (e) => {
                 const ok = await run(e.currentTarget as HTMLButtonElement, () => api.remove("follow_requests", `requester_id=eq.${r.requester_id}&target_id=eq.${api.userId}`));
-                if (ok !== undefined) navigate(location.hash);
+                if (ok !== undefined) refresh();
               }, "secondary", { class: "btn btn-secondary btn-sm" }),
             ),
           ),
