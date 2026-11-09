@@ -1,0 +1,24 @@
+{
+  "name": "amedspor-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AMEDSPOR Taraftar — tek HTML dosyalık mobil uygulama ve Android (Capacitor) paketi",
+  "scripts": {
+    "build:html": "node build.mjs",
+    "sync": "npm run build:html && npx cap sync android",
+    "android:debug": "npm run sync && cd android && ./gradlew assembleDebug",
+    "android:bundle": "npm run sync && cd android && ./gradlew bundleRelease"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/core": "8.6.0",
+    "@capacitor/share": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0",
+    "esbuild": "0.28.2"
+  }
+}

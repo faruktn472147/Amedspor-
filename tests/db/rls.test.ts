@@ -372,3 +372,38 @@ d("Yönetici istatistikleri", () => {
     expect(r.admin_stats.db_bytes).toBeGreaterThan(0);
   });
 });
+
+d("Mobil uygulama: medya imzalama ve avatar koruması", () => {
+  it("görünür gönderinin medyası okunabilir; özel/incelemedeki gönderininki okunamaz", async () => {
+    const author = await createUser();
+    const viewer = await createUser();
+    const [pub] = await as<{ id: string }>({ kind: "service" }, "insert into posts (author_id, body, moderation_status) values ($1, 'medya', 'approved') returning id", [author]);
+    const [pend] = await as<{ id: string }>({ kind: "service" }, "insert into posts (author_id, body, moderation_status) values ($1, 'bekleyen', 'pending') returning id", [author]);
+    const pubPath = `${author}/2026-11/${crypto.randomUUID()}.webp`;
+    const pendPath = `${author}/2026-11/${crypto.randomUUID()}.webp`;
+    await superuser("insert into storage.buckets (id, name, public) values ('media', 'media', false) on conflict do nothing");
+    await superuser("insert into storage.objects (bucket_id, name) values ('media', $1), ('media', $2)", [pubPath, pendPath]);
+    await superuser("insert into post_media (post_id, owner_id, media_type, storage_path, mime_type, size_bytes) values ($1, $2, 'image', $3, 'image/webp', 100), ($4, $2, 'image', $5, 'image/webp', 100)", [pub.id, author, pubPath, pend.id, pendPath]);
+    const seen = await as<{ name: string }>({ kind: "user", id: viewer }, "select name from storage.objects where bucket_id = 'media' and name = any($1)", [[pubPath, pendPath]]);
+    expect(seen.map((r) => r.name)).toEqual([pubPath]);
+    const anon = await as<{ name: string }>({ kind: "anon" }, "select name from storage.objects where bucket_id = 'media' and name = any($1)", [[pubPath, pendPath]]);
+    expect(anon.map((r) => r.name)).toEqual([pubPath]);
+    // Engellenen kullanıcı göremez
+    await superuser("insert into blocks (blocker_id, blocked_id) values ($1, $2)", [author, viewer]);
+    expect(await as({ kind: "user", id: viewer }, "select name from storage.objects where name = $1", [pubPath])).toHaveLength(0);
+  });
+
+  it("profil fotoğrafı yalnızca kullanıcının kendi avatars klasörünü gösterebilir", async () => {
+    const u = await createUser();
+    await expect(as({ kind: "user", id: u }, "update profiles set avatar_url = 'https://kotu-site.example/pixel.png' where id = $1", [u])).rejects.toThrow(/Geçersiz profil fotoğrafı/);
+    const other = await createUser();
+    await expect(
+      as({ kind: "user", id: u }, "update profiles set avatar_url = $2 where id = $1", [u, `https://abc.supabase.co/storage/v1/object/public/avatars/${other}/avatar-${crypto.randomUUID()}.webp`]),
+    ).rejects.toThrow(/Geçersiz/);
+    const ok = `https://abc.supabase.co/storage/v1/object/public/avatars/${u}/avatar-${crypto.randomUUID()}.webp`;
+    await as({ kind: "user", id: u }, "update profiles set avatar_url = $2 where id = $1", [u, ok]);
+    const [p] = await superuser("select avatar_url from profiles where id = $1", [u]);
+    expect(p.avatar_url).toBe(ok);
+    await as({ kind: "user", id: u }, "update profiles set avatar_url = null where id = $1", [u]);
+  });
+});
