@@ -1,0 +1,162 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * AMEDSPOR taraftar platformu — özgün geçici kimlik.
+ * Renkler kulübün kırmızı-yeşil renklerinden ilham alır; resmî logo/marka varlığı kullanılmaz.
+ */
+:root {
+  --bg: #f6f7f5;
+  --bg-elevated: #ffffff;
+  --bg-muted: #eceee9;
+  --fg: #0f1411;
+  --fg-muted: #5b635e;
+  --border: #dde1dc;
+  --brand-red: #c8102e;
+  --brand-red-strong: #a50d26;
+  --brand-green: #00843d;
+  --brand-green-strong: #006b31;
+  --live: #e11d48;
+  --ring: #00843d;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -12px rgb(0 0 0 / 0.12);
+}
+
+.dark {
+  --bg: #0a0d0b;
+  --bg-elevated: #121714;
+  --bg-muted: #1a211d;
+  --fg: #eef2ef;
+  --fg-muted: #9aa49e;
+  --border: #252e29;
+  --brand-red: #ef3b4f;
+  --brand-red-strong: #d42a3f;
+  --brand-green: #22b05a;
+  --brand-green-strong: #1b9149;
+  --live: #fb3b5c;
+  --ring: #22b05a;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-elevated: var(--bg-elevated);
+  --color-muted: var(--bg-muted);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-border: var(--border);
+  --color-red: var(--brand-red);
+  --color-red-strong: var(--brand-red-strong);
+  --color-green: var(--brand-green);
+  --color-green-strong: var(--brand-green-strong);
+  --color-live: var(--live);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --shadow-card: var(--shadow);
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.brand-gradient {
+  background-image: linear-gradient(135deg, var(--brand-red) 0%, var(--brand-red-strong) 45%, var(--brand-green-strong) 100%);
+}
+
+.brand-stripe {
+  background-image: linear-gradient(90deg, var(--brand-red) 0 50%, var(--brand-green) 50% 100%);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.85); }
+}
+.live-dot {
+  animation: live-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-muted);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.08), transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-in {
+  animation: fade-up 0.35s ease-out both;
+}
+
+@keyframes heart-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+.heart-pop {
+  animation: heart-pop 0.3s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.shorts-container {
+  height: calc(100dvh - 7.5rem);
+  scroll-snap-type: y mandatory;
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+}
+.shorts-item {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  height: 100%;
+}
+@media (min-width: 1024px) {
+  .shorts-container {
+    height: calc(100dvh - 5rem);
+  }
+}
+
+.prose-amed p { margin: 0.75em 0; line-height: 1.7; }
+.prose-amed h2 { font-size: 1.25rem; font-weight: 700; margin: 1.25em 0 0.5em; }
+.prose-amed h3 { font-size: 1.05rem; font-weight: 700; margin: 1em 0 0.4em; }
+.prose-amed ul { list-style: disc; padding-left: 1.25rem; margin: 0.75em 0; }
+.prose-amed li { margin: 0.25em 0; }
+.prose-amed a { color: var(--brand-green); text-decoration: underline; }
