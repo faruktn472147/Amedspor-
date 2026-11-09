@@ -1,0 +1,22 @@
+{
+  "appId": "com.amedtaraftar.app",
+  "appName": "AMEDSPOR Taraftar",
+  "webDir": "www",
+  "backgroundColor": "#0a0d0b",
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "server": {
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "initialViewportFitValueHint": "cover",
+      "style": "DARK"
+    }
+  }
+}

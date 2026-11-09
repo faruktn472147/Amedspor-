@@ -5,30 +5,19 @@ import { redirect } from "next/navigation";
 import { requireViewer } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { moderateFields } from "@/lib/moderation";
+import { deleteAccountForUser, updateProfileForUser } from "@/lib/social/mutations";
 import { fail, isUuid, rateLimit, str, type ActionResult } from "@/lib/server-utils";
 
 const NOT_CONFIGURED = "Veritabanı bağlantısı yapılandırılmadı.";
 
 export async function updateProfileAction(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const viewer = await requireViewer("/ayarlar");
-  const username = str(fd, "username", 24).toLowerCase();
-  const displayName = str(fd, "display_name", 50);
-  const bio = str(fd, "bio", 300);
-  if (!/^[a-z0-9_.]{3,24}$/.test(username)) return fail("Kullanıcı adı 3-24 karakter; küçük harf, rakam, nokta ve alt çizgi.");
-  const mod = moderateFields({ username, display_name: displayName, bio });
-  if (mod.decision !== "allow") return fail("Profil bilgilerin topluluk kurallarına uygun değil. Lütfen düzenle.");
-  if (!(await rateLimit(`profile:${viewer.user.id}`, 10, 3600))) return fail("Çok sık değişiklik yapıyorsun.");
-  const admin = getSupabaseAdmin();
-  if (!admin) return fail(NOT_CONFIGURED);
-  if (username !== viewer.profile?.username) {
-    const { data: taken } = await admin.from("profiles").select("id").eq("username", username).neq("id", viewer.user.id).maybeSingle();
-    if (taken) return fail("Bu kullanıcı adı alınmış.");
-  }
-  const { error } = await admin.from("profiles").update({ username, display_name: displayName, bio }).eq("id", viewer.user.id);
-  if (error) return fail("Profil güncellenemedi.");
-  revalidatePath("/", "layout");
-  return { ok: true, message: "Profilin güncellendi." };
+  const r = await updateProfileForUser(
+    { id: viewer.user.id, username: viewer.profile?.username ?? null },
+    { username: str(fd, "username", 24), displayName: str(fd, "display_name", 50), bio: str(fd, "bio", 300) },
+  );
+  if (r.ok) revalidatePath("/", "layout");
+  return r;
 }
 
 export async function updatePreferencesAction(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
@@ -152,32 +141,9 @@ export async function markNotificationsReadAction(): Promise<ActionResult> {
 /** KVKK: hesabın ve tüm kişisel verilerin kalıcı olarak silinmesi. */
 export async function deleteAccountAction(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
   const viewer = await requireViewer("/ayarlar/hesap");
-  const confirm = str(fd, "confirm", 30).toLowerCase();
-  if (confirm !== viewer.profile?.username) return fail("Onay için kullanıcı adını aynen yazmalısın.");
-  const admin = getSupabaseAdmin();
+  const r = await deleteAccountForUser({ id: viewer.user.id, username: viewer.profile?.username ?? null }, str(fd, "confirm", 30));
+  if (!r.ok) return r;
   const supabase = await createSupabaseServerClient();
-  if (!admin || !supabase) return fail(NOT_CONFIGURED);
-
-  const { data: sub } = await admin.from("subscriptions").select("status, provider, provider_subscription_ref").eq("user_id", viewer.user.id).maybeSingle();
-  if (sub && ["active", "renewal_pending"].includes(sub.status) && sub.provider !== "test") {
-    return fail("Önce Premium aboneliğini iptal etmelisin; aksi halde ödeme kuruluşu tahsilata devam edebilir.");
-  }
-
-  for (const bucket of ["media", "avatars"]) {
-    const { data: months } = await admin.storage.from(bucket).list(viewer.user.id, { limit: 1000 });
-    const paths: string[] = [];
-    for (const entry of months ?? []) {
-      if (entry.id) paths.push(`${viewer.user.id}/${entry.name}`);
-      else {
-        const { data: files } = await admin.storage.from(bucket).list(`${viewer.user.id}/${entry.name}`, { limit: 1000 });
-        for (const f of files ?? []) paths.push(`${viewer.user.id}/${entry.name}/${f.name}`);
-      }
-    }
-    if (paths.length) await admin.storage.from(bucket).remove(paths);
-  }
-  await admin.from("audit_logs").insert({ actor_id: null, action: "account_deleted", target_type: "user", target_id: viewer.user.id });
-  const { error } = await admin.auth.admin.deleteUser(viewer.user.id);
-  if (error) return fail("Hesap silinemedi. Lütfen destek ile iletişime geç.");
-  await supabase.auth.signOut({ scope: "global" }).catch(() => {});
+  await supabase?.auth.signOut({ scope: "global" }).catch(() => {});
   redirect("/?hesap=silindi");
 }

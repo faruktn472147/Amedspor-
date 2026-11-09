@@ -1,0 +1,94 @@
+# AMEDSPOR Android paketi (Play Store)
+# GitHub'ın ücretsiz derleme sunucularında çalışır. Her çalıştırmada:
+#   1) Tek HTML uygulama derlenir (mobile/www/index.html)
+#   2) Test edilebilir APK (debug) üretilir
+#   3) İmza anahtarı GitHub Secrets'ta tanımlıysa Play Store'a yüklenecek imzalı AAB üretilir
+# Ayarlar (Settings → Secrets and variables → Actions):
+#   Variables: AMED_SUPABASE_URL, AMED_SUPABASE_ANON_KEY, AMED_SITE_URL
+#   Secrets  : AMED_KEYSTORE_BASE64, AMED_KEYSTORE_PASSWORD, AMED_KEY_ALIAS, AMED_KEY_PASSWORD
+name: Android paketi
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, "claude/**"]
+    paths:
+      - "mobile/**"
+      - "src/lib/**"
+      - "public/icons/**"
+      - ".github/workflows/android.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Bağımlılıklar
+        run: npm ci
+
+      - name: Tek HTML uygulamayı derle
+        env:
+          AMED_SUPABASE_URL: ${{ vars.AMED_SUPABASE_URL }}
+          AMED_SUPABASE_ANON_KEY: ${{ vars.AMED_SUPABASE_ANON_KEY }}
+          AMED_SITE_URL: ${{ vars.AMED_SITE_URL }}
+        run: node build.mjs
+
+      - name: Android projesini eşitle
+        run: npx cap sync android
+
+      - name: Test APK'sı (debug)
+        working-directory: mobile/android
+        env:
+          AMED_VERSION_CODE: ${{ github.run_number }}
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: İmzalı Play Store paketi (AAB)
+        working-directory: mobile/android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.AMED_KEYSTORE_BASE64 }}
+          AMED_KEYSTORE_PASSWORD: ${{ secrets.AMED_KEYSTORE_PASSWORD }}
+          AMED_KEY_ALIAS: ${{ secrets.AMED_KEY_ALIAS }}
+          AMED_KEY_PASSWORD: ${{ secrets.AMED_KEY_PASSWORD }}
+          AMED_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::notice::İmza anahtarı tanımlı değil; yalnızca test APK'sı üretildi. Ayrıntı: docs/PLAY-STORE.md"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          AMED_KEYSTORE_PATH="$RUNNER_TEMP/upload.jks" ./gradlew --no-daemon bundleRelease
+          rm -f "$RUNNER_TEMP/upload.jks"
+
+      - name: Paketleri yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: amedspor-android-${{ github.run_number }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            mobile/android/app/build/outputs/apk/debug/*.apk
+            mobile/android/app/build/outputs/bundle/release/*.aab

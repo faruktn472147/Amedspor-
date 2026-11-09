@@ -1,138 +1,22 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { requireViewer } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { MODERATION_STATUS, moderateText } from "@/lib/moderation";
-import { isOwnedPath, sniffMime, UPLOAD_LIMITS, validateUpload } from "@/lib/uploads/validate";
+import { addCommentForUser, createPostForUser, type CreatePostInput } from "@/lib/social/mutations";
 import { fail, isUuid, rateLimit, type ActionResult } from "@/lib/server-utils";
 
 const NOT_CONFIGURED = "Veritabanı bağlantısı yapılandırılmadı.";
 
-const mediaSchema = z.object({
-  path: z.string().max(200),
-  mime: z.string().max(40),
-  size: z.number().int().positive(),
-  width: z.number().int().positive().max(8000).optional(),
-  height: z.number().int().positive().max(8000).optional(),
-  duration: z.number().nonnegative().max(600).optional(),
-  posterPath: z.string().max(200).optional(),
-});
-
-const postSchema = z.object({
-  kind: z.enum(["post", "short", "poll"]),
-  body: z.string().max(2200),
-  media: z.array(mediaSchema).max(UPLOAD_LIMITS.maxImagesPerPost),
-  pollOptions: z.array(z.string().trim().min(1).max(80)).max(4).optional(),
-});
-
-export type CreatePostInput = z.infer<typeof postSchema>;
-
-/** Yüklenen dosyanın gerçekten kullanıcıya ait olduğunu ve türünün beyan edilenle eşleştiğini doğrular. */
-async function verifyStoredMedia(userId: string, m: z.infer<typeof mediaSchema>): Promise<string | null> {
-  if (!isOwnedPath(userId, m.path)) return "Geçersiz dosya yolu.";
-  const kind = m.mime.startsWith("video/") ? "video" : "image";
-  const err = validateUpload({ kind, mime: m.mime, size: m.size, width: m.width, height: m.height, durationSeconds: m.duration });
-  if (err) return err;
-  const admin = getSupabaseAdmin();
-  if (!admin) return NOT_CONFIGURED;
-  const { data } = await admin.storage.from("media").createSignedUrl(m.path, 60);
-  if (!data?.signedUrl) return "Dosya bulunamadı. Lütfen yeniden yükle.";
-  const res = await fetch(data.signedUrl, { headers: { Range: "bytes=0-63" } });
-  if (!res.ok && res.status !== 206) return "Dosya doğrulanamadı.";
-  const head = new Uint8Array(await res.arrayBuffer()).slice(0, 64);
-  const real = sniffMime(head);
-  const compatible = real === m.mime || (real === "video/mp4" && m.mime === "video/mp4");
-  if (!compatible) {
-    await admin.storage.from("media").remove([m.path]);
-    return "Dosya içeriği beyan edilen türle uyuşmuyor ve silindi.";
-  }
-  return null;
-}
+export type { CreatePostInput } from "@/lib/social/mutations";
 
 export async function createPostAction(input: CreatePostInput): Promise<ActionResult<{ id: string; status: string }>> {
   const viewer = await requireViewer("/paylas");
-  const parsed = postSchema.safeParse(input);
-  if (!parsed.success) return fail("Gönderi bilgileri geçersiz.");
-  const { kind, body, media, pollOptions } = parsed.data;
-
-  if (!body.trim() && media.length === 0) return fail("Boş gönderi paylaşılamaz.");
-  if (kind === "short" && (media.length !== 1 || !media[0].mime.startsWith("video/"))) return fail("Shorts için tek bir dikey video gerekli.");
-  if (kind === "poll" && (!pollOptions || pollOptions.length < 2)) return fail("Anket için en az 2 seçenek gerekli.");
-  if (media.filter((m) => m.mime.startsWith("video/")).length > 1) return fail("Bir gönderide en fazla 1 video olabilir.");
-
-  if (!(await rateLimit(`post:${viewer.user.id}`, 10, 3600))) return fail("Saatte en fazla 10 gönderi paylaşabilirsin.");
-
-  const texts = [body, ...(pollOptions ?? [])].join("\n");
-  const mod = moderateText(texts, "post");
-  if (mod.decision === "block") return fail(mod.message ?? "İçerik topluluk kurallarına aykırı.");
-
-  for (const m of media) {
-    const err = await verifyStoredMedia(viewer.user.id, m);
-    if (err) return fail(err);
-  }
-
-  const admin = getSupabaseAdmin();
-  if (!admin) return fail(NOT_CONFIGURED);
-
-  // Medyalı gönderiler: görsel içerik otomatik denetlenemediği için yeni hesaplarda incelemeye alınır.
-  const accountAgeDays = viewer.profile ? (Date.now() - new Date(viewer.profile.created_at).getTime()) / 86400000 : 0;
-  let status = MODERATION_STATUS[mod.decision];
-  let reason = mod.decision === "review" ? mod.message : null;
-  if (status === "approved" && media.length > 0 && accountAgeDays < 3) {
-    status = "pending";
-    reason = "Yeni hesapların medya paylaşımları kısa bir incelemeden geçer.";
-  }
-
-  const { data: post, error } = await admin
-    .from("posts")
-    .insert({ author_id: viewer.user.id, kind, body, moderation_status: status, moderation_reason: reason })
-    .select("id")
-    .single();
-  if (error || !post) return fail("Gönderi kaydedilemedi.");
-
-  if (media.length) {
-    const { error: mErr } = await admin.from("post_media").insert(
-      media.map((m, i) => ({
-        post_id: post.id,
-        owner_id: viewer.user.id,
-        media_type: m.mime.startsWith("video/") ? "video" : "image",
-        storage_path: m.path,
-        poster_path: m.posterPath && isOwnedPath(viewer.user.id, m.posterPath) ? m.posterPath : null,
-        mime_type: m.mime,
-        size_bytes: m.size,
-        width: m.width ?? null,
-        height: m.height ?? null,
-        duration_seconds: m.duration ?? null,
-        position: i,
-      })),
-    );
-    if (mErr) {
-      await admin.from("posts").delete().eq("id", post.id);
-      return fail("Medya kaydedilemedi.");
-    }
-  }
-  if (kind === "poll" && pollOptions) {
-    await admin.from("poll_options").insert(pollOptions.map((label, i) => ({ post_id: post.id, label, position: i })));
-  }
-  if (status === "pending" && mod.decision === "review") {
-    await admin.from("moderation_actions").insert({
-      target_type: "post",
-      target_id: post.id,
-      target_owner_id: viewer.user.id,
-      action: "auto_flag",
-      reason: mod.hits.map((h) => h.category).join(","),
-      automated: true,
-    });
-  }
-  revalidatePath("/akis");
-  return {
-    ok: true,
-    data: { id: post.id, status },
-    message: status === "approved" ? "Gönderin paylaşıldı." : (reason ?? "Gönderin incelemeye alındı."),
-  };
+  const r = await createPostForUser({ id: viewer.user.id, createdAt: viewer.profile?.created_at ?? null }, input);
+  if (r.ok) revalidatePath("/akis");
+  return r;
 }
 
 export async function editPostAction(postId: string, body: string): Promise<ActionResult> {
@@ -171,29 +55,11 @@ export async function deletePostAction(postId: string): Promise<ActionResult> {
 
 export async function addCommentAction(postId: string, body: string, parentId?: string | null): Promise<ActionResult<{ status: string }>> {
   const viewer = await requireViewer();
-  const text = body.trim();
-  if (!isUuid(postId) || (parentId && !isUuid(parentId))) return fail("Geçersiz istek.");
-  if (text.length < 1 || text.length > 1000) return fail("Yorum 1-1000 karakter olmalı.");
-  if (!(await rateLimit(`comment:${viewer.user.id}`, 30, 600))) return fail("Çok hızlı yorum yapıyorsun. Biraz bekle.");
-  const mod = moderateText(text, "comment");
-  if (mod.decision === "block") return fail(mod.message ?? "Yorum topluluk kurallarına aykırı.");
   const supabase = await createSupabaseServerClient();
-  const admin = getSupabaseAdmin();
-  if (!supabase || !admin) return fail(NOT_CONFIGURED);
-  const { data: visible } = await supabase.rpc("can_view_post", { p_post_id: postId, viewer: viewer.user.id });
-  if (visible !== true) return fail("Bu gönderiye yorum yapamazsın.");
-  const status = MODERATION_STATUS[mod.decision];
-  const { error } = await admin.from("comments").insert({
-    post_id: postId,
-    author_id: viewer.user.id,
-    parent_id: parentId ?? null,
-    body: text,
-    moderation_status: status,
-    moderation_reason: mod.decision === "review" ? mod.message : null,
-  });
-  if (error) return fail("Yorum kaydedilemedi.");
-  revalidatePath(`/gonderi/${postId}`);
-  return { ok: true, data: { status }, message: status === "approved" ? undefined : "Yorumun incelemeye alındı." };
+  if (!supabase) return fail(NOT_CONFIGURED);
+  const r = await addCommentForUser(supabase, { id: viewer.user.id, createdAt: viewer.profile?.created_at ?? null }, postId, body, parentId);
+  if (r.ok) revalidatePath(`/gonderi/${postId}`);
+  return r;
 }
 
 export async function deleteCommentAction(commentId: string, postId: string): Promise<ActionResult> {
